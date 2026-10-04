@@ -1,3 +1,13 @@
+# REVIEW[MED]: Runtime and dev dependencies are mixed, and there's no Python version declared anywhere.
+# Recommended:
+#   - Use the plan's Stage 0 shared requirements.txt and requirements-dev.txt at the monorepo root
+#     (or a pyproject.toml with requires-python = ">=3.11" and a [dev] extra).
+#   - Move aiosqlite to dev (tests only), or drop it if tests move to Postgres.
+#   - Add alembic (plan Stage 5.1), and add fakeredis to the shared dev requirements (Stage 0 leaves it out).
+#   - pydantic-settings is listed but unused; use it for config (see main.py) or remove it.
+#   - Auth: Stage 0 pins python-jose==3.3.0, which has known CVEs fixed in 3.4.0; prefer PyJWT.
+#   - REVIEW[LOW]: `redis[asyncio]` and `fakeredis[aioredis]` name extras those versions don't have (pip
+#     warns on install). Use plain `redis` and `fakeredis`; asyncio support is built in.
 fastapi==0.111.0
 uvicorn[standard]==0.29.0
 sqlalchemy[asyncio]==2.0.30

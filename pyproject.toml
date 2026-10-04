@@ -1,0 +1,10 @@
+[project]
+name = "async-thread"
+version = "0.1.0"
+description = "Project 5: participant hash + IntegrityError retry + Redis unread counts"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Lets tests import the `app` package from the project root.
+pythonpath = ["."]
