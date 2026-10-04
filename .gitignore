@@ -49,3 +49,6 @@ htmlcov/
 # Logs
 *.log
 logs/
+
+# Local check artifacts
+.check-server.log

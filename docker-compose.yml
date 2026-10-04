@@ -1,0 +1,35 @@
+# Local Postgres + Redis for development, tests and benchmarks (plan Stage 0).
+# Credentials are for local use only. Host ports are 55432/56379 because 5432 (WSL), 5433 (native PostgreSQL 17)
+# and 6379/6380 (WSL) are already taken on this machine. Point the app at them with:
+#   DATABASE_URL=postgresql+asyncpg://user:password@localhost:55432/dbname
+#   REDIS_URL=redis://:redispassword@localhost:56379
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: dbname
+    ports:
+      - "55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d dbname"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --requirepass redispassword
+    ports:
+      - "56379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redispassword", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:

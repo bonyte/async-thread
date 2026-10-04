@@ -29,28 +29,70 @@ async-thread/
 │   ├── conftest.py
 │   ├── test_threads.py
 │   └── test_messages.py
+├── scripts/
+│   ├── check.py       # tests + real-stack smoke test (run before every commit)
+│   └── smoke.py       # end-to-end checks against a running server
+├── docker-compose.yml # Postgres 15 + Redis 7 for local dev
 ├── pyproject.toml     # Python version + pytest config
 └── requirements.txt
 ```
 
 ## Running it
 
-Requires Python 3.11+, plus Postgres 15 and Redis 7 for the server. The tests use SQLite and fakeredis.
+Requires Python 3.12 (see `.python-version`) and Docker. The unit tests use SQLite and fakeredis; the server and the smoke test use Postgres 15 and Redis 7 from `docker-compose.yml`. Those are published on host ports **55432/56379**, because 5432, 5433 and 6379 are taken on the dev machine.
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
+py -3.12 -m venv .venv             # macOS/Linux: python3.12 -m venv .venv
+source .venv/Scripts/activate      # PowerShell: .venv\Scripts\Activate.ps1 · macOS/Linux: .venv/bin/activate
 pip install -r requirements.txt
 
-pytest                             # run from the project root
+docker compose up -d --wait        # Postgres + Redis
+python scripts/check.py            # tests + start server + smoke test, then stop
 
-export DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/dbname
-export REDIS_URL=redis://:redispassword@localhost:6379
+# Run the server yourself:
+export DATABASE_URL=postgresql+asyncpg://user:password@localhost:55432/dbname
+export REDIS_URL=redis://:redispassword@localhost:56379
 uvicorn app.main:app --reload --port 8005
 ```
 
 On Windows PowerShell, set the variables with `$env:DATABASE_URL = "..."`.
 The tables are created at startup with `create_all`. There are no migrations yet.
+
+## Development workflow
+
+### Test every change
+| When | Run | Time |
+|---|---|---|
+| After each edit | `pytest -x -q` (stop at the first failure) or `pytest --lf` (rerun only what failed) | seconds |
+| Before each commit | `python scripts/check.py`: tests, then a live server on real Postgres + Redis, then `scripts/smoke.py` | ~15 s |
+| End of each step | Full check, then commit, then tag a checkpoint (below) | |
+
+Rules:
+- Never commit while the check is red.
+- When behaviour changes on purpose, update the test **in the same commit**, and update `scripts/smoke.py` when the API changes.
+- Make one logical change per commit, so any single change can be undone on its own.
+
+### Checkpoints and restoring earlier versions
+The rework happens on the `rework` branch. `main` and the tag `baseline-original` keep the original project.
+
+```bash
+git tag -a day1-done -m "Day 1: Alembic, settings, Postgres tests"   # mark a known-good state
+git tag -n                                                     # list checkpoints
+git log --oneline --decorate                                   # history with tags
+
+git diff                          # what changed since the last commit
+git restore app/routes.py         # discard uncommitted edits to one file
+git stash push -m "experiment"    # park uncommitted work; bring it back with `git stash pop`
+
+git revert <commit>               # undo one commit safely (adds an inverse commit)
+git switch --detach day1-done     # inspect/run an old checkpoint; return with `git switch rework`
+git switch -c retry day1-done     # start over from a checkpoint on a new branch, keeping the old attempt
+git reset --hard day1-done        # DESTRUCTIVE: drop all commits and edits after the checkpoint
+```
+
+To restore the **database**, use `docker compose down -v && docker compose up -d --wait`. This deletes the local data volume, which is fine here because all data is test data. Once Alembic is in, use `alembic downgrade -1` to step back one migration.
+
+To restore **dependencies**, delete `.venv` and reinstall from `requirements.txt`. Checking out an old checkpoint also brings back its `requirements.txt`.
 
 ## API
 
